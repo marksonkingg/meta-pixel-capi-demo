@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Practice Store</title>
+
+  <!-- Meta Pixel base code (already done for you) -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '2591423031271746');
+    fbq('track', 'PageView');
+  </script>
+
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; padding: 16px; }
+    .card { max-width: 420px; margin: 16px auto; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    button { width: 100%; padding: 12px; margin-top: 8px; border: 0; border-radius: 8px; font-size: 16px; cursor: pointer; background: #1d1d1f; color: #fff; }
+    input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    .hidden { display: none; }
+    #log { max-width: 420px; margin: 0 auto; font: 12px monospace; color: #555; white-space: pre-line; }
+  </style>
+</head>
+<body>
+
+  <div id="product" class="card">
+    <h2>Practice Product</h2>
+    <p>$49.00</p>
+    <button onclick="addToCart()">Add to Cart</button>
+  </div>
+
+  <div id="cart" class="card hidden">
+    <h2>Cart</h2>
+    <p>1 × Practice Product = $49.00</p>
+    <button onclick="goToCheckout()">Checkout</button>
+  </div>
+
+  <div id="checkout" class="card hidden">
+    <h2>Checkout</h2>
+    <input id="email" placeholder="Email (use a fake one)">
+    <button onclick="placeOrder()">Place Order</button>
+  </div>
+
+  <div id="thanks" class="card hidden">
+    <h2>Thank you!</h2>
+    <p>Your order is confirmed.</p>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    // ===== HELPER (already done for you) =====
+    // sendEvent('EventName', { parameters }, { email: '...' })
+    // Sends the event from the browser (Pixel) AND the server (CAPI)
+    // with the same event_id, so Meta counts it once.
+    function sendEvent(eventName, params, user) {
+      const eventId = eventName + '_' + Date.now();
+      fbq('track', eventName, params, { eventID: eventId });
+      fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_name: eventName, event_id: eventId,
+          event_source_url: location.href, custom_data: params, user: user || {} })
+      }).then(r => r.json()).then(res =>
+        log(eventName + (res.events_received ? ' ✓ sent to Meta' : ' ✗ ' + JSON.stringify(res.error || res))));
+    }
+    function log(msg) { document.getElementById('log').textContent += msg + '\n'; }
+    function show(id) {
+      ['product', 'cart', 'checkout', 'thanks'].forEach(s =>
+        document.getElementById(s).classList.toggle('hidden', s !== id));
+    }
+
+    // ===== YOUR TURN =====
+    // Write one sendEvent(...) line at each TODO.
+    // Example format:
+    //   sendEvent('EventName', { value: 49.00, currency: 'USD' });
+    
+    sendEvent('ViewContent', { value: 49.00, currency: 'USD' });
+
+
+    function addToCart() {
+      sendEvent('AddToCart', { value: 49.00, currency: 'USD' });
+
+      show('cart');
+    }
+
+    function goToCheckout() {
+      sendEvent('InitiateCheckout', { value: 49.00, currency: 'USD' });
+
+      show('checkout');
+    }
+
+    function placeOrder() {
+      const email = document.getElementById('email').value;
+      sendEvent('Purchase', { value: 49.00, currency: 'USD' }, { email: email });
+      // Hint: the email goes in the 3rd part: { email: email }
+
+      show('thanks');
+    }
+  </script>
+</body>
+</html>
