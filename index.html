@@ -140,6 +140,31 @@
       return eventId;
     }
 
+    // ---------- Hashing preview (display only) ----------
+    // Shows what the server does to customer info before sending it to Meta:
+    // normalize (trim, lowercase, phone digits only) -> SHA-256.
+    // Nothing extra is sent anywhere; this only prints to the log on this page.
+    async function sha256(text) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function showHashes(user) {
+      const fields = [
+        ['email', user.email, v => v.trim().toLowerCase()],
+        ['phone', user.phone, v => v.replace(/\D/g, '')],
+        ['first name', user.fn, v => v.trim().toLowerCase()],
+        ['last name', user.ln, v => v.trim().toLowerCase()]
+      ];
+      log('\nHashed before sending to Meta (SHA-256):');
+      for (const [label, raw, normalize] of fields) {
+        if (!raw) continue;
+        const clean = normalize(raw);
+        const hashed = await sha256(clean);
+        log('  ' + label + ': ' + raw + ' -> ' + hashed.slice(0, 16) + '...');
+      }
+    }
+
     function cartParams() {
       return {
         content_ids: [PRODUCT.id],
@@ -203,9 +228,9 @@
       const orderId = 'ORDER-' + Date.now();
       const f = e.target;
       // Customer info goes to the server, where it is hashed before sending to Meta
-      track('Purchase', { ...cartParams(), order_id: orderId }, {
-        email: f.email.value, phone: f.phone.value, fn: f.fn.value, ln: f.ln.value
-      });
+      const user = { email: f.email.value, phone: f.phone.value, fn: f.fn.value, ln: f.ln.value };
+      track('Purchase', { ...cartParams(), order_id: orderId }, user);
+      showHashes(user);
       document.getElementById('orderId').textContent = orderId;
       cart = 0; qty = 1;
       render();
