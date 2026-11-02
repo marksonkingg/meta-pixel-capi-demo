@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Pixel + CAPI Demo Store</title>
+
+  <!-- Meta Pixel base code -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1799985491128514');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=1799985491128514&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel base code -->
+
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; padding: 16px; color: #1d1d1f; }
+    header { max-width: 460px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    header b { font-size: 18px; }
+    .cart-btn { background: none; border: 1px solid #ccc; border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+    .card { max-width: 460px; margin: 16px auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .img { height: 180px; background: #e8e0d5; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px; }
+    h1 { font-size: 22px; margin: 16px 0 4px; }
+    h2 { font-size: 20px; margin: 0 0 16px; }
+    .price { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .qty { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .qty button, .row button { width: 32px; padding: 4px; margin: 0; background: #eee; }
+    button { width: 100%; padding: 12px; margin-top: 8px; border: 0; border-radius: 8px; font-size: 16px; cursor: pointer; }
+    .dark { background: #1d1d1f; color: #fff; }
+    .blue { background: #0866ff; color: #fff; }
+    .light { background: #eee; }
+    label { display: block; font-size: 13px; margin-top: 10px; }
+    input { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
+    .note { font-size: 12px; color: #777; margin-top: 8px; }
+    .hidden { display: none; }
+    #log { max-width: 460px; margin: 0 auto; font: 12px ui-monospace, monospace; color: #555; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>Demo Store</b>
+    <button class="cart-btn" onclick="showCart()">Cart (<span id="cartCount">0</span>)</button>
+  </header>
+
+  <!-- PRODUCT PAGE -->
+  <section id="product" class="card">
+    <div class="img">📘</div>
+    <h1>Field Guide (Demo Product)</h1>
+    <div class="price">$29.00</div>
+    <div class="qty">
+      <button onclick="changeQty(-1)">−</button>
+      <span id="qty">1</span>
+      <button onclick="changeQty(1)">+</button>
+    </div>
+    <button class="dark" onclick="addToCart()">Add to Cart</button>
+  </section>
+
+  <!-- CART PAGE -->
+  <section id="cart" class="card hidden">
+    <h2>Your Cart</h2>
+    <div id="cartItems"></div>
+    <div class="row"><b>Total</b><b id="cartTotal">$0.00</b></div>
+    <button class="blue" onclick="checkout()">Checkout</button>
+    <button class="light" onclick="show('product')">Continue Shopping</button>
+  </section>
+
+  <!-- CHECKOUT PAGE -->
+  <section id="checkout" class="card hidden">
+    <h2>Checkout</h2>
+    <form id="checkoutForm" onsubmit="purchase(event)">
+      <label>Email <input type="email" name="email" required placeholder="test@example.com"></label>
+      <label>Phone <input type="tel" name="phone" placeholder="+639171234567"></label>
+      <label>First name <input type="text" name="fn" required></label>
+      <label>Last name <input type="text" name="ln" required></label>
+      <div class="row"><b>Total</b><b id="checkoutTotal">$0.00</b></div>
+      <button class="blue" type="submit">Place Order (test, no payment)</button>
+    </form>
+    <p class="note">Demo only. Use fake details. No real payment is taken.</p>
+  </section>
+
+  <!-- THANK YOU PAGE -->
+  <section id="thanks" class="card hidden">
+    <h2>Thank you! 🎉</h2>
+    <p>Order <b id="orderId"></b> placed.</p>
+    <button class="dark" onclick="show('product')">Back to Store</button>
+  </section>
+
+  <div id="log"></div>
+
+  <script>
+    const PRODUCT = { id: 'DEMO-001', name: 'Field Guide', price: 29.00 };
+    const CURRENCY = 'USD';
+    let qty = 1;
+    let cart = 0; // number of units in cart
+
+    // ---------- Tracking helpers ----------
+    // Unique ID per event. Later the server (CAPI) sends the same ID,
+    // so Meta counts each event once instead of twice (deduplication).
+    function newEventId(name) {
+      return name + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function track(eventName, params) {
+      const eventId = newEventId(eventName);
+      fbq('track', eventName, params, { eventID: eventId });
+      document.getElementById('log').textContent +=
+        'Sent ' + eventName + ' (event_id: ' + eventId + ')\n';
+      return eventId;
+    }
+
+    function cartParams() {
+      return {
+        content_ids: [PRODUCT.id],
+        content_type: 'product',
+        contents: [{ id: PRODUCT.id, quantity: cart }],
+        num_items: cart,
+        value: +(cart * PRODUCT.price).toFixed(2),
+        currency: CURRENCY
+      };
+    }
+
+    // ---------- Page navigation ----------
+    function show(id) {
+      ['product', 'cart', 'checkout', 'thanks'].forEach(s =>
+        document.getElementById(s).classList.toggle('hidden', s !== id));
+      window.scrollTo(0, 0);
+    }
+
+    function money(n) { return '$' + n.toFixed(2); }
+
+    function render() {
+      document.getElementById('qty').textContent = qty;
+      document.getElementById('cartCount').textContent = cart;
+      const total = money(cart * PRODUCT.price);
+      document.getElementById('cartTotal').textContent = total;
+      document.getElementById('checkoutTotal').textContent = total;
+      document.getElementById('cartItems').innerHTML = cart
+        ? `<div class="row"><span>${PRODUCT.name} × ${cart}</span>
+             <span><button onclick="removeOne()">−</button></span></div>`
+        : '<p>Your cart is empty.</p>';
+    }
+
+    // ---------- Store actions ----------
+    function changeQty(d) { qty = Math.max(1, qty + d); render(); }
+
+    function addToCart() {
+      cart += qty;
+      render();
+      track('AddToCart', {
+        content_ids: [PRODUCT.id],
+        content_type: 'product',
+        contents: [{ id: PRODUCT.id, quantity: qty }],
+        value: +(qty * PRODUCT.price).toFixed(2),
+        currency: CURRENCY
+      });
+      showCart();
+    }
+
+    function removeOne() { cart = Math.max(0, cart - 1); render(); }
+
+    function showCart() { render(); show('cart'); }
+
+    function checkout() {
+      if (!cart) { alert('Your cart is empty.'); return; }
+      track('InitiateCheckout', cartParams());
+      show('checkout');
+    }
+
+    function purchase(e) {
+      e.preventDefault();
+      const orderId = 'ORDER-' + Date.now();
+      track('Purchase', { ...cartParams(), order_id: orderId });
+      document.getElementById('orderId').textContent = orderId;
+      cart = 0; qty = 1;
+      render();
+      e.target.reset();
+      show('thanks');
+    }
+
+    // Fires once when the product page loads
+    track('ViewContent', {
+      content_ids: [PRODUCT.id],
+      content_type: 'product',
+      content_name: PRODUCT.name,
+      value: PRODUCT.price,
+      currency: CURRENCY
+    });
+    render();
+  </script>
+</body>
+</html>
