@@ -15,11 +15,11 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1799985491128514');
+    fbq('init', '2591423031271746');
     fbq('track', 'PageView');
   </script>
   <noscript><img height="1" width="1" style="display:none"
-    src="https://www.facebook.com/tr?id=1799985491128514&ev=PageView&noscript=1"/></noscript>
+    src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"/></noscript>
   <!-- End Meta Pixel base code -->
 
   <style>
@@ -111,11 +111,32 @@
       return name + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     }
 
-    function track(eventName, params) {
+    function log(msg) { document.getElementById('log').textContent += msg + '\n'; }
+
+    // Sends each event twice with the SAME event_id:
+    //  1) Browser: Meta Pixel (can be blocked by ad blockers / networks)
+    //  2) Server:  /api/event -> Conversions API (not affected by blockers)
+    // Meta sees the matching event_id and counts it once (deduplication).
+    function track(eventName, params, user) {
       const eventId = newEventId(eventName);
       fbq('track', eventName, params, { eventID: eventId });
-      document.getElementById('log').textContent +=
-        'Sent ' + eventName + ' (event_id: ' + eventId + ')\n';
+      log('Pixel  -> ' + eventName + ' (event_id: ' + eventId + ')');
+
+      fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_name: eventName,
+          event_id: eventId,
+          event_source_url: location.href,
+          custom_data: params,
+          user: user || {}
+        })
+      })
+        .then(r => r.json())
+        .then(res => log('CAPI   -> ' + eventName + (res.events_received ? ' ✓ received' : ' ✗ ' + JSON.stringify(res.error || res))))
+        .catch(err => log('CAPI   -> ' + eventName + ' ✗ ' + err.message));
+
       return eventId;
     }
 
@@ -180,7 +201,11 @@
     function purchase(e) {
       e.preventDefault();
       const orderId = 'ORDER-' + Date.now();
-      track('Purchase', { ...cartParams(), order_id: orderId });
+      const f = e.target;
+      // Customer info goes to the server, where it is hashed before sending to Meta
+      track('Purchase', { ...cartParams(), order_id: orderId }, {
+        email: f.email.value, phone: f.phone.value, fn: f.fn.value, ln: f.ln.value
+      });
       document.getElementById('orderId').textContent = orderId;
       cart = 0; qty = 1;
       render();
