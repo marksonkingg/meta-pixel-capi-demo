@@ -15,7 +15,33 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '2591423031271746');
+    // ---------- Match quality boosters (run before the pixel starts) ----------
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function setCookie(name, value, days) {
+      document.cookie = name + '=' + encodeURIComponent(value) +
+        '; max-age=' + days * 86400 + '; path=/; SameSite=Lax';
+    }
+
+    // 1) external_id: a permanent random ID for this visitor (kept 2 years)
+    let VISITOR_ID = getCookie('vid');
+    if (!VISITOR_ID) {
+      VISITOR_ID = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+      setCookie('vid', VISITOR_ID, 730);
+    }
+
+    // 2) fbc: if the visitor came from a Meta ad (?fbclid=...), save the click ID (90 days)
+    const fbclid = new URLSearchParams(location.search).get('fbclid');
+    if (fbclid && !getCookie('_fbc')) setCookie('_fbc', 'fb.1.' + Date.now() + '.' + fbclid, 90);
+
+    // 3) Returning customer: hashed info saved after a previous order (never the raw values)
+    let KNOWN_USER = {};
+    try { KNOWN_USER = JSON.parse(localStorage.getItem('known_user') || '{}'); } catch (e) {}
+
+    // Pixel advanced matching: send external_id + any known hashed customer info
+    fbq('init', '2591423031271746', { external_id: VISITOR_ID, ...KNOWN_USER });
     fbq('track', 'PageView');
   </script>
   <noscript><img height="1" width="1" style="display:none"
@@ -130,11 +156,15 @@
           event_id: eventId,
           event_source_url: location.href,
           custom_data: params,
-          user: user || {}
+          // Every event carries the visitor ID + any known (hashed) customer info.
+          // Info typed in this event (e.g. checkout form) takes priority.
+          user: { external_id: VISITOR_ID, ...KNOWN_USER, ...(user || {}) }
         })
       })
         .then(r => r.json())
-        .then(res => log('CAPI   -> ' + eventName + (res.events_received ? ' ✓ received' : ' ✗ ' + JSON.stringify(res.error || res))))
+        .then(res => log('CAPI   -> ' + eventName + (res.events_received ? ' ✓ received' : ' ✗ ' + JSON.stringify(res.error || res)) +
+          '  [match keys: external_id' + (getCookie('_fbp') ? ', fbp' : '') + (getCookie('_fbc') ? ', fbc' : '') +
+          (Object.keys(KNOWN_USER).length || user ? ', customer info' : '') + ']'))
         .catch(err => log('CAPI   -> ' + eventName + ' ✗ ' + err.message));
 
       return eventId;
@@ -163,6 +193,19 @@
         const hashed = await sha256(clean);
         log('  ' + label + ': ' + raw + ' -> ' + hashed.slice(0, 16) + '...');
       }
+    }
+
+    // Save HASHED customer info so this visitor's future events match better.
+    // Raw email/phone/name are never stored.
+    async function rememberCustomer(user) {
+      const known = {};
+      if (user.email) known.em = await sha256(user.email.trim().toLowerCase());
+      if (user.phone && user.phone.replace(/\D/g, '')) known.ph = await sha256(user.phone.replace(/\D/g, ''));
+      if (user.fn) known.fn = await sha256(user.fn.trim().toLowerCase());
+      if (user.ln) known.ln = await sha256(user.ln.trim().toLowerCase());
+      KNOWN_USER = known;
+      try { localStorage.setItem('known_user', JSON.stringify(known)); } catch (e) {}
+      log('Saved hashed customer info: future visits will match better.');
     }
 
     function cartParams() {
@@ -231,6 +274,7 @@
       const user = { email: f.email.value, phone: f.phone.value, fn: f.fn.value, ln: f.ln.value };
       track('Purchase', { ...cartParams(), order_id: orderId }, user);
       showHashes(user);
+      rememberCustomer(user);
       document.getElementById('orderId').textContent = orderId;
       cart = 0; qty = 1;
       render();
