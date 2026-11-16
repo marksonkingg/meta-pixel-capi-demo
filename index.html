@@ -103,17 +103,34 @@ src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       window.scrollTo(0, 0);
+    // Sends one event to BOTH the pixel (browser) and our server (CAPI), with the SAME event ID
+    function track(eventName, params, user) {
+      const eventId = eventName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      fbq('track', eventName, params, { eventID: eventId });
+      fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          event_name: eventName,
+          event_id: eventId,
+          event_source_url: location.href,
+          custom_data: params,
+          user: user || {}
+        })
+      });
+    }
     }
 
     // ===================== PASTE SPOT 2: VIEWCONTENT =====================
     // Runs once when the product page loads. Paste your ViewContent event below.
-	fbq('track', 'ViewContent', PRODUCT);
+	track('ViewContent', PRODUCT);
     // =====================================================================
 
     function addToCart() {
       // ===================== PASTE SPOT 3: ADDTOCART =====================
       // Paste your AddToCart event below.
-	fbq('track', 'AddToCart', PRODUCT);
+	track('AddToCart', PRODUCT);
       // ===================================================================
       show('cart');
     }
@@ -121,7 +138,7 @@ src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"
     function startCheckout() {
       // ===================== PASTE SPOT 4: INITIATECHECKOUT =====================
       // Paste your InitiateCheckout event below.
-	fbq('track', 'InitiateCheckout', { ...PRODUCT, num_items: 1 });
+	track('InitiateCheckout', { ...PRODUCT, num_items: 1 });
       // ==========================================================================
       show('checkout');
     }
@@ -136,7 +153,7 @@ src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"
       // ===================== PASTE SPOT 5: PURCHASE =====================
       // Paste your Purchase event below.
       // Ready to use: orderId, email, phone, firstName, PRODUCT
-	fbq('track', 'Purchase', { ...PRODUCT, num_items: 1 });
+	track('Purchase', { ...PRODUCT, num_items: 1, order_id: orderId }, { email, phone, first_name: firstName });
       // ==================================================================
       document.getElementById('order-id').textContent = orderId;
       show('thanks');
