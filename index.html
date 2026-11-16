@@ -103,6 +103,8 @@ src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       window.scrollTo(0, 0);
+    }
+
     // Sends one event to BOTH the pixel (browser) and our server (CAPI), with the SAME event ID
     function track(eventName, params, user) {
       const eventId = eventName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
@@ -119,7 +121,6 @@ src="https://www.facebook.com/tr?id=2591423031271746&ev=PageView&noscript=1"
           user: user || {}
         })
       });
-    }
     }
 
     // ===================== PASTE SPOT 2: VIEWCONTENT =====================
